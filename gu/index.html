@@ -46,7 +46,10 @@
         if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $Sha256) { throw "Контрольная сумма $target не совпала. Файл не запущен." }
 
         Write-Host "GoldenUser ${Version}: проверено, запускаю $target"
-        Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -STA -File `"$target`""
+        Write-Host 'Не закрывайте это окно, пока открыт GoldenUser: сюда выводятся ошибки запуска.'
+        # Запуск в этой же консоли и с ожиданием: если скрипт упадёт до появления окна, текст ошибки останется здесь.
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File $target
+        if ($LASTEXITCODE) { throw "GoldenUser завершился с кодом $LASTEXITCODE - текст ошибки выше." }
     }
     catch {
         Write-Host "GoldenUser: ОШИБКА - $($_.Exception.Message)" -ForegroundColor Red
