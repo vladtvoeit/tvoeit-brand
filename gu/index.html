@@ -11,8 +11,8 @@
 & {
     $ErrorActionPreference = 'Stop'
 
-    $Version = 'v1.0'
-    $Sha256  = '86EB7D8412B7C763B5EE5AF439B3FE1EE4C80528B67D1F60D072FAC9DEED20E9'
+    $Version = 'v1.1'
+    $Sha256  = '5A42379F26A8610F002B5C99C923A2B7AE779E7446D5634CFBBBD83B2654B861'
     $Url     = "https://raw.githubusercontent.com/vladtvoeit/GoldenUser/$Version/GoldenUser.ps1"
     $Short   = 'https://tvoe.it/gu'
 
