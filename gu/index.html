@@ -1,0 +1,55 @@
+# GoldenUser - загрузчик для запуска одной строкой из PowerShell:
+#
+#     irm https://tvoe.it/gu | iex
+#
+# Живая копия этого файла лежит в репозитории tvoeit-brand как gu/index.html (GitHub Pages, tvoe.it).
+# Загрузчик скачивает GoldenUser.ps1 строго указанной версии, сверяет SHA256 и запускает его
+# от администратора из C:\Program Files\GoldenUser (обычные пользователи туда писать не могут).
+# Новая версия: поставить метку в репозитории GoldenUser, поменять здесь $Version и $Sha256
+# и скопировать файл в tvoeit-brand/gu/index.html.
+
+& {
+    $ErrorActionPreference = 'Stop'
+
+    $Version = 'v1.0'
+    $Sha256  = '86EB7D8412B7C763B5EE5AF439B3FE1EE4C80528B67D1F60D072FAC9DEED20E9'
+    $Url     = "https://raw.githubusercontent.com/vladtvoeit/GoldenUser/$Version/GoldenUser.ps1"
+    $Short   = 'https://tvoe.it/gu'
+
+    try {
+        # Старые сборки Windows 10 по умолчанию не включают TLS 1.2, без него GitHub не ответит.
+        try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+
+        $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        if (-not $isAdmin) {
+            Write-Host 'GoldenUser: нужны права администратора, открываю PowerShell от имени администратора...'
+            Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm $Short | iex`""
+            return
+        }
+
+        $dir    = Join-Path $env:ProgramFiles 'GoldenUser'
+        $target = Join-Path $dir 'GoldenUser.ps1'
+        $tmp    = Join-Path $env:TEMP ('GoldenUser_{0}.ps1' -f [guid]::NewGuid().ToString('N'))
+
+        Write-Host "GoldenUser ${Version}: загрузка..."
+        Invoke-WebRequest -Uri $Url -OutFile $tmp -UseBasicParsing
+        $hash = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash
+        if ($hash -ne $Sha256) {
+            Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+            throw "Контрольная сумма не совпала (получено $hash). Файл не запущен."
+        }
+
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+        Move-Item -LiteralPath $tmp -Destination $target -Force
+
+        # Повторная проверка уже на месте запуска.
+        if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $Sha256) { throw "Контрольная сумма $target не совпала. Файл не запущен." }
+
+        Write-Host "GoldenUser ${Version}: проверено, запускаю $target"
+        Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -STA -File `"$target`""
+    }
+    catch {
+        Write-Host "GoldenUser: ОШИБКА - $($_.Exception.Message)" -ForegroundColor Red
+        Read-Host 'Нажмите Enter, чтобы закрыть' | Out-Null
+    }
+}
