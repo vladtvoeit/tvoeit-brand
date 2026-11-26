@@ -4,15 +4,16 @@
 #
 # Живая копия этого файла лежит в репозитории tvoeit-brand как gu/index.html (GitHub Pages, tvoe.it).
 # Загрузчик скачивает GoldenUser.ps1 строго указанной версии, сверяет SHA256 и запускает его
-# от администратора из C:\Program Files\GoldenUser (обычные пользователи туда писать не могут).
+# от администратора из C:\Program Files\GoldenUser (обычные пользователи туда писать не могут),
+# а на рабочем столе администратора создаёт ярлык GoldenUser для запуска без интернета.
 # Новая версия: поставить метку в репозитории GoldenUser, поменять здесь $Version и $Sha256
 # и скопировать файл в tvoeit-brand/gu/index.html.
 
 & {
     $ErrorActionPreference = 'Stop'
 
-    $Version = 'v1.1'
-    $Sha256  = '5A42379F26A8610F002B5C99C923A2B7AE779E7446D5634CFBBBD83B2654B861'
+    $Version = 'v1.2'
+    $Sha256  = 'F000E393BF08321B3A65536C3F82557F93D2B726B450FE081AE9FA62C5485348'
     $Url     = "https://raw.githubusercontent.com/vladtvoeit/GoldenUser/$Version/GoldenUser.ps1"
     $Short   = 'https://tvoe.it/gu'
 
@@ -44,6 +45,25 @@
 
         # Повторная проверка уже на месте запуска.
         if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $Sha256) { throw "Контрольная сумма $target не совпала. Файл не запущен." }
+
+        # Ярлык на рабочем столе ТЕКУЩЕГО администратора (не общий: у user его быть не должно).
+        # Запускает уже скачанную проверенную копию, работает без интернета; обновление - снова irm.
+        try {
+            $desktop = [Environment]::GetFolderPath('Desktop')
+            $lnk = Join-Path $desktop 'GoldenUser.lnk'
+            $sc = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+            $sc.TargetPath       = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $sc.Arguments        = "-NoProfile -ExecutionPolicy Bypass -STA -File `"$target`" -HideConsole"
+            $sc.WorkingDirectory = $dir
+            $sc.Description      = "GoldenUser $Version - эталонный профиль пользователя"
+            $sc.Save()
+            # Флаг «Запуск от имени администратора» (бит 0x20 в байте 0x15 заголовка .lnk): сразу запрос UAC.
+            $bytes = [IO.File]::ReadAllBytes($lnk)
+            $bytes[0x15] = $bytes[0x15] -bor 0x20
+            [IO.File]::WriteAllBytes($lnk, $bytes)
+            Write-Host "GoldenUser ${Version}: ярлык на рабочем столе - $lnk"
+        }
+        catch { Write-Host "GoldenUser: ярлык создать не удалось - $($_.Exception.Message)" -ForegroundColor Yellow }
 
         Write-Host "GoldenUser ${Version}: проверено, запускаю $target"
         Write-Host 'Не закрывайте это окно, пока открыт GoldenUser: сюда выводятся ошибки запуска.'
